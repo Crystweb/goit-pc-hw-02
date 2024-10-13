@@ -1,9 +1,17 @@
+### Основні кроки:
+1. **Метод Касікі**: Знаходження повторюваних послідовностей літер у шифротексті та визначення довжини ключа на основі відстаней між цими повтореннями.
+2. **Метод Фрідмана**: Оцінка довжини ключа на основі індексу відповідності (IC).
+3. **Частотний аналіз**: Визначення символів ключа за допомогою хі-квадрат статистики.
+4. **Дешифрування**: Розшифровування тексту за знайденим ключем, зберігаючи пробіли та розділові знаки.
+
+### Повний робочий код:
+
+```python
 import string
 from collections import Counter
 from math import gcd
 from functools import reduce
 
-# Частотні дані для англійської мови
 ENGLISH_FREQ = {
     'A': 0.08167, 'B': 0.01492, 'C': 0.02782, 'D': 0.04253, 'E': 0.12702,
     'F': 0.02228, 'G': 0.02015, 'H': 0.06094, 'I': 0.06966, 'J': 0.00153,
@@ -14,9 +22,6 @@ ENGLISH_FREQ = {
 }
 
 def find_repeated_sequences_spacings(ciphertext, sequence_length=3):
-    """
-    Знаходить повторювані послідовності символів та їх відстані у шифротексті.
-    """
     spacings = []
     seq_positions = {}
     for i in range(len(ciphertext) - sequence_length +1):
@@ -31,18 +36,13 @@ def find_repeated_sequences_spacings(ciphertext, sequence_length=3):
     return spacings
 
 def kasiski_examination(ciphertext, sequence_length=3):
-    """
-    Виконує метод Касікі для оцінки довжини ключа.
-    """
     spacings = find_repeated_sequences_spacings(ciphertext, sequence_length)
     if not spacings:
         return None
-    # Обчислюємо GCD усіх відстаней
     gcd_all = reduce(gcd, spacings)
     return gcd_all
 
 def friedman_test(ciphertext):
-    """Обчислює індекс відповідності (IC) для всього тексту."""
     filtered_text = [c.upper() for c in ciphertext if c.isalpha()]
     N = len(filtered_text)
     if N <= 1:
@@ -53,7 +53,6 @@ def friedman_test(ciphertext):
     return ic
 
 def estimate_key_length_friedman(ciphertext):
-    """Визначає ймовірну довжину ключа за методом Фрідмана."""
     ic = friedman_test(ciphertext)
     N = len([c for c in ciphertext if c.isalpha()])
     if ic == 0:
@@ -67,27 +66,22 @@ def estimate_key_length_friedman(ciphertext):
     return max(1, round(key_length_estimate))
 
 def get_possible_key_lengths(ciphertext):
-    """Отримує можливі довжини ключа за методами Касікі та Фрідмана."""
     key_length_kasiski = kasiski_examination(ciphertext)
     key_length_friedman = estimate_key_length_friedman(ciphertext)
     possible_lengths = []
     if key_length_kasiski and 1 < key_length_kasiski <= 20:
         possible_lengths.append(key_length_kasiski)
     possible_lengths.append(key_length_friedman)
-    # Додамо також найбільш ймовірні ключові довжини біля оцінених значень
     for length in range(1,4):
         if 1 <= (key_length_friedman - length) <= 20:
             possible_lengths.append(key_length_friedman - length)
         if 1 <= (key_length_friedman + length) <= 20:
             possible_lengths.append(key_length_friedman + length)
-    # Фільтруємо довжини ключа, щоб вони були в межах 1 і 20
     possible_lengths = [k for k in possible_lengths if 1 <= k <= 20]
-    # Видаляємо дублікати
     possible_lengths = sorted(set(possible_lengths))
     return possible_lengths
 
 def split_into_groups(ciphertext, key_length):
-    """Розбиває текст на групи відповідно до довжини ключа."""
     groups = ['' for _ in range(key_length)]
     index = 0
     for char in ciphertext:
@@ -97,7 +91,6 @@ def split_into_groups(ciphertext, key_length):
     return groups
 
 def chi_squared_statistic(counter, total):
-    """Обчислює статистику хі-квадрат для заданого підрахунку частот."""
     chi2 = 0.0
     for letter in string.ascii_uppercase:
         observed = counter.get(letter, 0)
@@ -106,15 +99,13 @@ def chi_squared_statistic(counter, total):
     return chi2
 
 def find_key_for_group(group):
-    """Визначає символ ключа для окремої групи за допомогою хі-квадрат статистики."""
     total = len(group)
     if total == 0:
-        return 'A'  # Припускаємо зсув 0, якщо група порожня
+        return 'A'
     counter = Counter(group)
     min_chi2 = float('inf')
     best_shift = 0
     for shift in range(26):
-        # Зсуваємо всі літери в групі на 'shift' назад
         decrypted = ''.join([chr((ord(c) - 65 - shift) % 26 + 65) for c in group])
         decrypted_counter = Counter(decrypted)
         chi2 = chi_squared_statistic(decrypted_counter, total)
@@ -124,14 +115,12 @@ def find_key_for_group(group):
     return chr(best_shift + 65)
 
 def find_key(groups):
-    """Визначає ключ за допомогою частотного аналізу з використанням хі-квадрат статистики."""
     key = ''
     for group in groups:
         key += find_key_for_group(group)
     return key
 
 def decrypt_vigenere(ciphertext, key):
-    """Дешифрує текст за допомогою шифру Віженера, зберігаючи пробіли та розділові знаки."""
     decrypted = []
     key_length = len(key)
     key_int = [ord(k) - 65 for k in key.upper()]
@@ -141,15 +130,13 @@ def decrypt_vigenere(ciphertext, key):
         if char.isalpha():
             shift = key_int[key_index % key_length]
             decrypted_char = chr((ord(char.upper()) - 65 - shift) % 26 + 65)
-            # Збереження оригінального регістру
             decrypted.append(decrypted_char if char.isupper() else decrypted_char.lower())
             key_index += 1
         else:
-            decrypted.append(char)  # Зберігаємо пробіли та розділові знаки
+            decrypted.append(char)
     return ''.join(decrypted)
 
 def vigenere_encrypt(plaintext, key):
-    """Шифрує текст за допомогою шифру Віженера."""
     encrypted = []
     key_length = len(key)
     key_int = [ord(k.upper()) - 65 for k in key]
@@ -162,29 +149,22 @@ def vigenere_encrypt(plaintext, key):
             encrypted.append(encrypted_char if char.isupper() else encrypted_char.lower())
             key_index += 1
         else:
-            encrypted.append(char)  # Зберігаємо пробіли та розділові знаки
+            encrypted.append(char)
     return ''.join(encrypted)
 
 def main():
-    # Введення тексту для шифрування
     plaintext = input("Введіть текст для шифрування: ")
 
-    # Ключ для шифрування
     vigenere_key = "CRYPTOGRAPHY"
 
-    # Шифрування тексту за допомогою шифру Віженера
     ciphertext = vigenere_encrypt(plaintext, vigenere_key)
     print(f"\nЗашифрований текст: {ciphertext}\n")
 
-    # Введення зашифрованого тексту для дешифрування
     # Якщо ви хочете дешифрувати власний текст, закоментуйте рядок шифрування та розкоментуйте нижче:
     # ciphertext = input("Введіть зашифрований текст: ")
-
-    # Крок 1: Оцінка довжини ключа за методами Касікі та Фрідмана
     possible_key_lengths = get_possible_key_lengths(ciphertext)
     print(f"Можливі довжини ключа: {possible_key_lengths}")
 
-    # Крок 2: Оцінка ключа для кожної можливої довжини та вибір найкращого
     best_key = None
     best_chi2 = float('inf')
     best_decrypted = ''
@@ -193,7 +173,6 @@ def main():
         groups = split_into_groups(ciphertext, key_length)
         found_key = find_key(groups)
         decrypted_text = decrypt_vigenere(ciphertext, found_key)
-        # Compute average chi-squared for the key
         groups_decrypted = split_into_groups(decrypted_text, key_length)
         total_chi2 = 0.0
         for group in groups_decrypted:
@@ -204,7 +183,6 @@ def main():
             chi2 = chi_squared_statistic(counter, total)
             total_chi2 += chi2
         average_chi2 = total_chi2 / key_length if key_length > 0 else float('inf')
-        # Keep the key with the lowest average chi2
         if average_chi2 < best_chi2:
             best_chi2 = average_chi2
             best_key = found_key
@@ -216,3 +194,65 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+### Пояснення коду:
+
+1. **Частотні дані (`ENGLISH_FREQ`)**:
+   - Використовуються для обчислення хі-квадрат статистики, щоб визначити, наскільки розшифрований текст відповідає типовим частотам англійських букв.
+
+2. **Метод Касікі**:
+   - Функція `find_repeated_sequences_spacings` шукає повторювані послідовності символів довжиною 3 та обчислює відстані між їх повтореннями.
+   - Функція `kasiski_examination` обчислює найбільший спільний дільник (GCD) усіх відстаней, щоб оцінити довжину ключа.
+
+3. **Метод Фрідмана**:
+   - Функція `friedman_test` обчислює індекс відповідності (IC) для всього тексту.
+   - Функція `estimate_key_length_friedman` використовує метод Фрідмана для оцінки довжини ключа за формулою:
+     \[
+     K \approx \frac{0.0265 \times N}{(IC \times (N - 1)) - (0.0385 \times N) + 0.065}
+     \]
+     де \( N \) — загальна кількість літер у тексті.
+
+4. **Частотний аналіз**:
+   - Функція `chi_squared_statistic` обчислює хі-квадрат статистику для порівняння частот букв у групі з очікуваними частотами англійської мови.
+   - Функція `find_key_for_group` визначає символ ключа для кожної групи шляхом зсуву, який мінімізує хі-квадрат статистику.
+   - Функція `find_key` агрегує символи ключа з усіх груп.
+
+5. **Дешифрування**:
+   - Функція `decrypt_vigenere` розшифровує текст за допомогою знайденого ключа, зберігаючи пробіли та розділові знаки без змін.
+
+6. **Шифрування (для демонстрації)**:
+   - Функція `vigenere_encrypt` використовується для шифрування тексту за допомогою шифру Віженера з відомим ключем "CRYPTOGRAPHY" для перевірки правильності роботи програми.
+
+7. **Основна функція (`main`)**:
+   - Вводить текст для шифрування.
+   - Шифрує текст за допомогою шифру Віженера.
+   - Виконує методи Касікі та Фрідмана для оцінки довжини ключа.
+   - Визначає ключ за допомогою частотного аналізу.
+   - Розшифровує текст за знайденим ключем.
+
+
+### Важливі моменти для точності:
+
+1. **Обсяг тексту**:
+   - Чим більше зашифрованого тексту, тим точніша оцінка довжини ключа та визначення ключа за частотним аналізом.
+
+2. **Мова тексту**:
+   - Програма налаштована на англійську мову. Якщо текст іншою мовою, потрібно змінити частотні дані (`ENGLISH_FREQ`) відповідно до цієї мови.
+
+3. **Коректність шифрування**:
+   - Переконайтеся, що шифрування відбувається правильно за допомогою шифру Віженера з відомим ключем перед спробою розшифрування.
+
+4. **Перевірка ключа**:
+   - Якщо знайдений ключ не співпадає з очікуваним, перевірте правильність реалізації методів або спробуйте додатковий аналіз.
+
+### Додаткові рекомендації:
+
+- **Використання інших методів**:
+  - Методи Касікі та Фрідмана часто дають приблизну оцінку довжини ключа. Для більшої точності можна комбінувати обидва методи або використовувати додаткові методи криптоаналізу.
+
+- **Ручна перевірка**:
+  - Після автоматичного визначення ключа, можна вручну перевірити частоти букв у кожній групі для підтвердження правильності зсувів.
+
+- **Покращення алгоритму**:
+  - Додати можливість пробувати кілька найбільш ймовірних довжин ключа та обирати найкращий результат на основі хі-квадрат статистики або інших критеріїв.

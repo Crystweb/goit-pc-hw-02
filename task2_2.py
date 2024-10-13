@@ -1,87 +1,174 @@
 import math
 
-# Функція для створення порядку стовпців на основі ключової фрази
-def get_permutation_order(key):
-    order = sorted(list(enumerate(key)), key=lambda x: x[1])
-    return [x[0] for x in order]
+def generate_order(key):
+    """
+    Генерує порядок стовпчиків на основі ключа.
+    Порядок визначається алфавітним порядком букв ключа.
+    У випадку повторюваних букв, порядок визначається їхнім порядком появи.
+    
+    Args:
+        key (str): Ключове слово.
+    
+    Returns:
+        list: Список індексів стовпчиків у порядку їх читання.
+    """
+    key = key.upper()
+    # Створюємо список букв з їхніми індексами
+    key_letters = list(key)
+    indexed_key = list(enumerate(key_letters))
+    # Сортуємо за буквою, а при рівності — за індексом
+    sorted_key = sorted(indexed_key, key=lambda x: (x[1], x[0]))
+    # Визначаємо порядок
+    order = [idx for idx, char in sorted_key]
+    return order
 
-# Функція для шифрування за допомогою простої перестановки
-def encrypt_transposition(text, key):
-    text = ''.join([char for char in text if char.isalpha()])  # Очищаємо текст від пробілів і неалфавітних символів
-    key_len = len(key)
-    permutation_order = get_permutation_order(key)
+def encrypt_columnar_transposition(plaintext, key):
+    """
+    Шифрує текст за допомогою стовпчикової транспозиції.
+    Зберігає пробіли та розділові знаки.
     
-    # Розрахунок кількості рядків
-    num_rows = math.ceil(len(text) / key_len)
+    Args:
+        plaintext (str): Текст для шифрування.
+        key (str): Ключове слово.
     
-    # Додаємо заповнювачі, щоб текст був кратний довжині ключа
-    padded_text = text.ljust(num_rows * key_len)
+    Returns:
+        str: Зашифрований текст.
+    """
+    key = key.upper()
+    order = generate_order(key)
+    key_length = len(key)
+    ciphertext = [''] * key_length
     
-    # Створюємо таблицю з рядків
-    table = [padded_text[i:i + key_len] for i in range(0, len(padded_text), key_len)]
+    # Заповнюємо таблицю по рядках
+    for idx, char in enumerate(plaintext):
+        column = idx % key_length
+        ciphertext[column] += char
     
-    # Шифруємо, переставляючи стовпці за порядком
-    cipher_text = ''
-    for index in permutation_order:
-        for row in table:
-            cipher_text += row[index]
+    # Зчитуємо стовпчики у визначеному порядку
+    encrypted_text = ''.join([ciphertext[idx] for idx in order])
     
-    return cipher_text
+    return encrypted_text
 
-# Функція для дешифрування за допомогою простої перестановки
-def decrypt_transposition(cipher_text, key):
-    key_len = len(key)
-    num_rows = math.ceil(len(cipher_text) / key_len)
+def decrypt_columnar_transposition(ciphertext, key):
+    """
+    Дешифрує текст за допомогою стовпчикової транспозиції.
+    Зберігає пробіли та розділові знаки.
     
-    permutation_order = get_permutation_order(key)
+    Args:
+        ciphertext (str): Зашифрований текст.
+        key (str): Ключове слово.
     
-    # Створюємо таблицю для дешифрування
-    num_full_columns = len(cipher_text) % key_len
-    num_chars_in_column = num_rows if num_full_columns == 0 else num_rows - 1
+    Returns:
+        str: Розшифрований текст.
+    """
+    key = key.upper()
+    order = generate_order(key)
+    key_length = len(key)
+    num_of_rows = math.ceil(len(ciphertext) / key_length)
+    num_full_columns = len(ciphertext) % key_length
     
-    # Ініціалізуємо порожню таблицю
-    table = [''] * key_len
-    start = 0
+    # Визначаємо кількість символів у кожному стовпчику
+    column_lengths = {}
+    for idx in order:
+        if num_full_columns == 0 or idx < num_full_columns:
+            column_lengths[idx] = num_of_rows
+        else:
+            column_lengths[idx] = num_of_rows - 1
     
-    for index in permutation_order:
-        column_length = num_rows if index < num_full_columns else num_chars_in_column
-        table[index] = cipher_text[start:start + column_length]
-        start += column_length
+    # Розподіляємо зашифрований текст по стовпчиках
+    columns = {}
+    pointer = 0
+    for idx in order:
+        length = column_lengths[idx]
+        columns[idx] = ciphertext[pointer:pointer+length]
+        pointer += length
     
-    # Зчитуємо текст по рядках з таблиці
-    original_text = ''
-    for i in range(num_rows):
-        for col in table:
-            if i < len(col):
-                original_text += col[i]
+    # Відновлюємо оригінальний текст
+    plaintext = ''
+    for i in range(num_of_rows):
+        for j in range(key_length):
+            if i < len(columns[j]):
+                plaintext += columns[j][i]
     
-    return original_text
+    return plaintext
 
-# Функція для шифрування методом подвійної перестановки
-def double_transposition_encrypt(text, key1, key2):
-    # Перше шифрування (перестановка за першим ключем)
-    first_encryption = encrypt_transposition(text, key1)
-    # Друге шифрування (перестановка за другим ключем)
-    second_encryption = encrypt_transposition(first_encryption, key2)
+def double_transposition_encrypt(plaintext, key1, key2):
+    """
+    Виконує подвійне шифрування тексту за допомогою двох табличних шифрів.
+    
+    Args:
+        plaintext (str): Оригінальний текст.
+        key1 (str): Перший ключ (для першої транспозиції).
+        key2 (str): Другий ключ (для другої транспозиції).
+    
+    Returns:
+        str: Подвійно зашифрований текст.
+    """
+    first_encryption = encrypt_columnar_transposition(plaintext, key1)
+    second_encryption = encrypt_columnar_transposition(first_encryption, key2)
     return second_encryption
 
-# Функція для дешифрування методом подвійної перестановки
-def double_transposition_decrypt(cipher_text, key1, key2):
-    # Перше дешифрування (перестановка за другим ключем)
-    first_decryption = decrypt_transposition(cipher_text, key2)
-    # Друге дешифрування (перестановка за першим ключем)
-    second_decryption = decrypt_transposition(first_decryption, key1)
+def double_transposition_decrypt(ciphertext, key1, key2):
+    """
+    Виконує подвійне дешифрування тексту за допомогою двох табличних шифрів.
+    
+    Args:
+        ciphertext (str): Подвійно зашифрований текст.
+        key1 (str): Перший ключ (для першої транспозиції).
+        key2 (str): Другий ключ (для другої транспозиції).
+    
+    Returns:
+        str: Розшифрований текст.
+    """
+    first_decryption = decrypt_columnar_transposition(ciphertext, key2)
+    second_decryption = decrypt_columnar_transposition(first_decryption, key1)
     return second_decryption
 
-# Основна програма
-key1 = "SECRET"
-key2 = "CRYPTO"
-text = input("Введіть текст для шифрування: ").upper()
+def main_level2():
+    print("=== Рівень 2: Подвійний табличний шифр зі стовпчиковою транспозицією ===\n")
+    
+    # Ключі
+    key1 = "SECRET"
+    key2 = "CRYPTO"
+    print(f"Перший ключ (для першої транспозиції): {key1}")
+    print(f"Другий ключ (для другої транспозиції): {key2}\n")
+    
+    # Введення тексту
+    plaintext = input("Введіть текст для шифрування: ")
+    
+    # Шифрування
+    ciphertext = double_transposition_encrypt(plaintext, key1, key2)
+    print(f"\nЗашифрований текст після подвійної транспозиції: {ciphertext}\n")
+    
+    # Дешифрування
+    decrypted_text = double_transposition_decrypt(ciphertext, key1, key2)
+    print(f"Розшифрований текст: {decrypted_text}\n")
 
-# Шифрування
-cipher_text = double_transposition_encrypt(text, key1, key2)
-print(f"Зашифрований текст: {cipher_text}")
+def main():
+    print("Виберіть рівень:")
+    print("1. Табличний шифр зі стовпчиковою транспозицією (Ключ: SECRET)")
+    print("2. Подвійний табличний шифр зі стовпчиковою транспозицією (Ключі: SECRET та CRYPTO)")
+    choice = input("Введіть 1 або 2: ")
+    
+    if choice == '1':
+        print("\n=== Рівень 1: Табличний шифр зі стовпчиковою транспозицією ===\n")
+        key = "SECRET"
+        print(f"Ключ: {key}\n")
+        
+        plaintext = input("Введіть текст для шифрування: ")
+        
+        # Шифрування
+        ciphertext = encrypt_columnar_transposition(plaintext, key)
+        print(f"\nЗашифрований текст: {ciphertext}\n")
+        
+        # Дешифрування
+        decrypted_text = decrypt_columnar_transposition(ciphertext, key)
+        print(f"Розшифрований текст: {decrypted_text}\n")
+    
+    elif choice == '2':
+        main_level2()
+    else:
+        print("Невірний вибір. Завершення програми.")
 
-# Дешифрування
-decrypted_text = double_transposition_decrypt(cipher_text, key1, key2)
-print(f"Розшифрований текст: {decrypted_text}")
+if __name__ == "__main__":
+    main()

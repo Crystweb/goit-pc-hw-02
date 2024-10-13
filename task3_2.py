@@ -1,123 +1,169 @@
-import string
+import math
 
-# Шифр Віженера
+from task3_1 import main_level1
+
+
+def get_order(key):
+    """
+    Генерує порядок стовпчиків на основі ключа.
+    Порядок визначається алфавітним порядком букв ключа.
+    У випадку повторюваних букв, порядок визначається їхнім порядком появи.
+    """
+    key = key.upper()
+    sorted_key = sorted([(char, idx) for idx, char in enumerate(key)])
+    order = {}
+    current_order = 1
+    for char, idx in sorted_key:
+        order[idx] = current_order
+        current_order += 1
+    return order
+
+def encrypt_columnar_transposition(plaintext, key):
+    """
+    Шифрує текст за допомогою стовпчикової транспозиції.
+    Зберігає пробіли та розділові знаки.
+    """
+    key = key.upper()
+    order = get_order(key)
+    key_length = len(key)
+    num_of_rows = math.ceil(len(plaintext) / key_length)
+    
+    # Заповнюємо таблицю рядками
+    grid = [''] * key_length
+    for idx, char in enumerate(plaintext):
+        column = idx % key_length
+        grid[column] += char
+    
+    # Якщо останній стовпчик не повністю заповнений, доповнюємо його символом 'X'
+    for i in range(key_length):
+        if len(grid[i]) < num_of_rows:
+            grid[i] += 'X' * (num_of_rows - len(grid[i]))
+    
+    # Створюємо список стовпчиків у порядку шифрування
+    sorted_columns = sorted(order.items(), key=lambda x: x[1])
+    encrypted_text = ''.join([grid[idx] for idx, _ in sorted_columns])
+    
+    return encrypted_text
+
+def decrypt_columnar_transposition(ciphertext, key):
+    """
+    Дешифрує текст за допомогою стовпчикової транспозиції.
+    Зберігає пробіли та розділові знаки.
+    """
+    key = key.upper()
+    order = get_order(key)
+    key_length = len(key)
+    num_of_rows = math.ceil(len(ciphertext) / key_length)
+    
+    sorted_columns = sorted(order.items(), key=lambda x: x[1])
+    
+    # Визначаємо кількість символів у кожному стовпчику
+    num_full_columns = len(ciphertext) % key_length
+    if num_full_columns == 0:
+        num_full_columns = key_length
+    
+    column_lengths = {}
+    for idx, (col_idx, _) in enumerate(sorted_columns):
+        if idx < num_full_columns:
+            column_lengths[col_idx] = num_of_rows
+        else:
+            column_lengths[col_idx] = num_of_rows - 1
+    
+    # Розподіляємо зашифрований текст по стовпчиках
+    columns = {}
+    pointer = 0
+    for col_idx, _ in sorted_columns:
+        length = column_lengths[col_idx]
+        columns[col_idx] = ciphertext[pointer:pointer+length]
+        pointer += length
+    
+    # Відновлюємо оригінальний текст
+    plaintext = ''
+    for i in range(num_of_rows):
+        for j in range(key_length):
+            if i < len(columns[j]):
+                plaintext += columns[j][i]
+    
+    # Видаляємо заповнювачі 'X' якщо вони були додані
+    plaintext = plaintext.rstrip('X')
+    
+    return plaintext
+
 def vigenere_encrypt(plaintext, key):
-    alphabet = string.ascii_uppercase
-    plaintext = plaintext.upper().replace(" ", "")
-    key = key.upper()
-    cipher_text = ''
-    
-    for i, letter in enumerate(plaintext):
-        letter_index = alphabet.index(letter)
-        key_index = alphabet.index(key[i % len(key)])
-        cipher_letter = alphabet[(letter_index + key_index) % 26]
-        cipher_text += cipher_letter
-    
-    return cipher_text
+    """Шифрує текст за допомогою шифру Віженера."""
+    encrypted = []
+    key_length = len(key)
+    key_int = [ord(k.upper()) - 65 for k in key]
+    key_index = 0
 
-def vigenere_decrypt(cipher_text, key):
-    alphabet = string.ascii_uppercase
-    key = key.upper()
-    plaintext = ''
-    
-    for i, letter in enumerate(cipher_text):
-        letter_index = alphabet.index(letter)
-        key_index = alphabet.index(key[i % len(key)])
-        plain_letter = alphabet[(letter_index - key_index) % 26]
-        plaintext += plain_letter
-    
-    return plaintext
-
-# Табличний шифр
-def create_matrix(key):
-    key = ''.join(sorted(set(key), key=key.index))  # Унікальні символи з ключа, зберігаючи порядок
-    alphabet = string.ascii_uppercase.replace('J', '')  # Використовуємо алфавіт без 'J'
-    
-    # Створюємо повний список символів для матриці
-    matrix_elements = key + ''.join([char for char in alphabet if char not in key])
-    
-    # Створюємо матрицю 5x5
-    matrix = [list(matrix_elements[i:i+5]) for i in range(0, 25, 5)]
-    
-    return matrix
-
-def find_position(matrix, letter):
-    for row in range(5):
-        for col in range(5):
-            if matrix[row][col] == letter:
-                return row, col
-    return None
-
-def encrypt_table_cipher(plaintext, matrix):
-    plaintext = plaintext.upper().replace("J", "I")
-    plaintext = ''.join([char for char in plaintext if char.isalpha()])
-    
-    pairs = []
-    i = 0
-    while i < len(plaintext):
-        first_letter = plaintext[i]
-        second_letter = plaintext[i + 1] if i + 1 < len(plaintext) else 'X'
-        if first_letter == second_letter:
-            pairs.append((first_letter, 'X'))
-            i += 1
+    for char in plaintext:
+        if char.isalpha():
+            shift = key_int[key_index % key_length]
+            base = ord('A') if char.isupper() else ord('a')
+            encrypted_char = chr((ord(char.upper()) - 65 + shift) % 26 + 65)
+            encrypted.append(encrypted_char if char.isupper() else encrypted_char.lower())
+            key_index += 1
         else:
-            pairs.append((first_letter, second_letter))
-            i += 2
-    
-    cipher_text = ''
-    for (a, b) in pairs:
-        row1, col1 = find_position(matrix, a)
-        row2, col2 = find_position(matrix, b)
-        
-        if row1 == row2:
-            cipher_text += matrix[row1][(col1 + 1) % 5]
-            cipher_text += matrix[row2][(col2 + 1) % 5]
-        elif col1 == col2:
-            cipher_text += matrix[(row1 + 1) % 5][col1]
-            cipher_text += matrix[(row2 + 1) % 5][col2]
+            encrypted.append(char)  # Зберігаємо пробіли та розділові знаки
+    return ''.join(encrypted)
+
+def vigenere_decrypt(ciphertext, key):
+    """Дешифрує текст за допомогою шифру Віженера."""
+    decrypted = []
+    key_length = len(key)
+    key_int = [ord(k.upper()) - 65 for k in key]
+    key_index = 0
+
+    for char in ciphertext:
+        if char.isalpha():
+            shift = key_int[key_index % key_length]
+            decrypted_char = chr((ord(char.upper()) - 65 - shift) % 26 + 65)
+            decrypted.append(decrypted_char if char.isupper() else decrypted_char.lower())
+            key_index += 1
         else:
-            cipher_text += matrix[row1][col2]
-            cipher_text += matrix[row2][col1]
+            decrypted.append(char)  # Зберігаємо пробіли та розділові знаки
+    return ''.join(decrypted)
+
+def main_level2():
+    print("=== Рівень 2: Подвійне шифрування (Віженер, потім Табличний шифр) ===\n")
     
-    return cipher_text
-
-def decrypt_table_cipher(cipher_text, matrix):
-    plaintext = ''
-    for i in range(0, len(cipher_text), 2):
-        a, b = cipher_text[i], cipher_text[i + 1]
-        row1, col1 = find_position(matrix, a)
-        row2, col2 = find_position(matrix, b)
-        
-        if row1 == row2:
-            plaintext += matrix[row1][(col1 - 1) % 5]
-            plaintext += matrix[row2][(col2 - 1) % 5]
-        elif col1 == col2:
-            plaintext += matrix[(row1 - 1) % 5][col1]
-            plaintext += matrix[(row2 - 1) % 5][col2]
-        else:
-            plaintext += matrix[row1][col2]
-            plaintext += matrix[row2][col1]
+    # Вхідний текст
+    plaintext = input("Введіть текст для шифрування: ")
     
-    return plaintext
+    # Ключі
+    vigenere_key = "CRYPTO"
+    table_key = "CRYPTO"
+    
+    # Шифрування за допомогою шифру Віженера
+    vigenere_encrypted = vigenere_encrypt(plaintext, vigenere_key)
+    print(f"\nТекст після шифру Віженера: {vigenere_encrypted}\n")
+    
+    # Шифрування за допомогою табличного шифру (стовпчикова транспозиція)
+    table_ciphertext = encrypt_columnar_transposition(vigenere_encrypted, table_key)
+    print(f"Зашифрований текст після табличного шифру: {table_ciphertext}\n")
+    
+    # Дешифрування табличного шифру
+    table_decrypted = decrypt_columnar_transposition(table_ciphertext, table_key)
+    print(f"Текст після дешифрування табличного шифру: {table_decrypted}\n")
+    
+    # Дешифрування шифру Віженера
+    final_decrypted = vigenere_decrypt(table_decrypted, vigenere_key)
+    print(f"Розшифрований текст: {final_decrypted}\n")
 
-# Основна програма
-text = input("Введіть текст для шифрування: ").upper()
-vigenere_key = "KEY"
-table_key = "CRYPTO"
 
-# Етап 1: Шифрування шифром Віженера
-vigenere_encrypted = vigenere_encrypt(text, vigenere_key)
-print(f"Зашифрований текст (Віженер): {vigenere_encrypted}")
+def main():
+    print("Виберіть рівень:")
+    print("1. Табличний шифр зі стовпчиковою транспозицією")
+    print("2. Подвійне шифрування (Віженер, потім Табличний шифр)")
+    choice = input("Введіть 1 або 2: ")
 
-# Етап 2: Шифрування табличним шифром
-matrix = create_matrix(table_key)
-table_encrypted = encrypt_table_cipher(vigenere_encrypted, matrix)
-print(f"Зашифрований текст (табличний): {table_encrypted}")
+    if choice == '1':
+        main_level1()
+    elif choice == '2':
+        main_level2()
+    else:
+        print("Невірний вибір. Завершення програми.")
 
-# Етап 3: Дешифрування табличним шифром
-table_decrypted = decrypt_table_cipher(table_encrypted, matrix)
-print(f"Розшифрований текст (табличний): {table_decrypted}")
 
-# Етап 4: Дешифрування шифром Віженера
-vigenere_decrypted = vigenere_decrypt(table_decrypted, vigenere_key)
-print(f"Розшифрований текст (Віженер): {vigenere_decrypted}")
+if __name__ == "__main__":
+    main()
